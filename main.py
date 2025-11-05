@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, Form
 from fastapi import HTTPException
+from fastapi import Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import sqlite3
@@ -12,23 +13,6 @@ from datetime import datetime
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-
-# def init_db():
-#     conn = sqlite3.connect("database.db")
-#     c = conn.cursor()
-#     c.execute("""
-#     CREATE TABLE IF NOT EXISTS reservations (
-#         id INTEGER PRIMARY KEY AUTOINCREMENT,
-#         name TEXT NOT NULL,
-#         equipment TEXT NOT NULL,
-#         start_date TEXT NOT NULL,
-#         end_date TEXT NOT NULL
-#     )
-#     """)
-#     conn.commit()
-#     conn.close()
-
-# init_db()
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -79,38 +63,41 @@ async def create_reservation(name: str = Form(...),
     finally:
         db.close()
         
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 @app.put("/api/reservations/{reservation_id}")
-async def update_reservation(reservation_id: int, request: Request):
+async def update_reservation(reservation_id: int, request: Request, db: Session = Depends(get_db)):
     data = await request.json()
     name = data.get("name")
-    equipment = data.get("equipment")
+    equipment_id = data.get("equipment")  # IDを受け取る前提
     start_date = data.get("start_date")
     end_date = data.get("end_date")
 
-    conn = sqlite3.connect("database.db")
-    c = conn.cursor()
-    c.execute("""
-        UPDATE reservations
-        SET name=?, equipment=?, start_date=?, end_date=?
-        WHERE id=?
-    """, (name, equipment, start_date, end_date, reservation_id))
-    conn.commit()
-    if c.rowcount == 0:
-        conn.close()
+    reservation = db.query(Reservation).filter(Reservation.id == reservation_id).first()
+    if not reservation:
         raise HTTPException(status_code=404, detail="予約が見つかりません")
-    conn.close()
+
+    reservation.user_name = name
+    reservation.equipment_id = equipment_id
+    reservation.start_time = datetime.fromisoformat(start_date)
+    reservation.end_time = datetime.fromisoformat(end_date)
+
+    db.commit()
     return {"status": "updated"}
 
 @app.delete("/api/reservations/{reservation_id}")
-async def delete_reservation(reservation_id: int):
-    conn = sqlite3.connect("database.db")
-    c = conn.cursor()
-    c.execute("DELETE FROM reservations WHERE id=?", (reservation_id,))
-    conn.commit()
-    if c.rowcount == 0:
-        conn.close()
+def delete_reservation(reservation_id: int, db: Session = Depends(get_db)):
+    reservation = db.query(Reservation).filter(Reservation.id == reservation_id).first()
+    if not reservation:
         raise HTTPException(status_code=404, detail="予約が見つかりません")
-    conn.close()
+
+    db.delete(reservation)
+    db.commit()
     return {"status": "deleted"}
 
 @app.get("/api/categories")
