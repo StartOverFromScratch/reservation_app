@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>備品予約システム</title>
+  <style>
+    section {
+      margin-bottom: 2em;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 8px;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+  </style>
+  <!-- FullCalendar CSS & JS -->
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
+</head>
+<body>
+  <h1>備品予約システム</h1>
+    <!-- 予約フォーム -->
+  <section id="form-section">
+    <h2>予約フォーム</h2>
+    <form id="reserve-form">
+      名前: <input type="text" name="name" required><br>
+      備品: <input type="text" name="equipment" required><br>
+      開始日: <input type="date" name="start_date" required><br>
+      終了日: <input type="date" name="end_date" required><br>
+      <button type="submit">予約</button>
+    </form>
+  </section>
+    <!-- 予約一覧 -->
+  <section id="list-section">
+    <h2>予約一覧</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>名前</th>
+          <th>備品</th>
+          <th>開始日</th>
+          <th>終了日</th>
+        </tr>
+      </thead>
+      <tbody id="reservations-table-body">
+      </tbody>
+    </table>
+  </section>
+    <!-- カレンダー -->
+  <section id="calendar-section">
+    <h2>カレンダー</h2>
+    <div id="calendar" style="max-width: 900px; margin: 0 auto;"></div>
+    </div>
+  </section>
+
+<script>
+  const form = document.getElementById('reserve-form');
+  const tableBody = document.getElementById('reservations-table-body');
+  function loadReservations() {
+    fetch('/api/reservations')
+      .then(res => res.json())
+      .then(data => {
+        tableBody.innerHTML = '';
+        data.forEach(r => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${r.name}</td>
+            <td>${r.equipment}</td>
+            <td>${r.start_date}</td>
+            <td>${r.end_date}</td>
+            <td>
+              <button onclick="editReservation(${r.id})">編集</button>
+              <button onclick="deleteReservation(${r.id})">削除</button>
+            </td>
+          `;
+          tableBody.appendChild(row);
+        });
+      });
+  }
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    console.log("submit1: submitting form");
+    const formData = new FormData(form);
+    fetch('/api/reservations', {
+      method: 'POST',
+      body: formData
+    })
+      .then(response => {
+      if (!response.ok) {
+        throw new Error("登録失敗");
+      }
+      console.log("登録成功");
+      form.reset();
+      loadReservations();
+      renderCalendar(); // カレンダー再読み込み
+    })
+  .catch(err => {
+    console.error("エラー", err);
+  });
+  
+  });
+
+function editReservation(id) {
+  const record = prompt("新しい内容をカンマ区切りで入力（名前,備品,開始日,終了日）:");
+  if (!record) return;
+  const [name, equipment, start_date, end_date] = record.split(",");
+  fetch(`/api/reservations/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, equipment, start_date, end_date })
+  })
+    .then(res => {
+      if (!res.ok) throw new Error("更新失敗");
+      return res.json();
+    })
+    .then(() => {
+      loadReservations();
+      renderCalendar();
+    })
+    .catch(err => alert("更新エラー: " + err));
+}
+
+function deleteReservation(id) {
+  if (!confirm("本当に削除しますか？")) return;
+  fetch(`/api/reservations/${id}`, {
+    method: 'DELETE'
+  })
+    .then(res => {
+      if (!res.ok) throw new Error("削除失敗");
+      return res.json();
+    })
+    .then(() => {
+      loadReservations();
+      renderCalendar();
+    })
+    .catch(err => alert("削除エラー: " + err));
+}
+
+
+  function renderCalendar() {
+    const calendarEl = document.getElementById('calendar');
+    calendarEl.innerHTML = ''; // 再描画のため初期化
+
+    fetch('/api/reservations')
+      .then(res => res.json())
+      .then(data => {
+        try{
+
+          console.log("取得イベント");
+          const events = data.map(r => {
+            const endDate = new Date(r.end_date);
+            endDate.setDate(endDate.getDate() + 1); // FullCalendarはend日を含まない
+            return {
+              title: `${r.name} (${r.equipment})`,
+              start: r.start_date,
+              end: endDate.toISOString().split('T')[0],
+            };
+          });
+          
+          const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'ja',
+            events: events,
+          });
+          
+          calendar.render();
+        } catch (error) {
+          console.error("カレンダー描画エラー:", error);
+ calendarEl.innerHTML = `<p style="color:red;">カレンダー描画中にエラーが発生しました</p>`;
+      }
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    loadReservations();
+    renderCalendar();
+  });
+</script>
+</body>
+</html>
