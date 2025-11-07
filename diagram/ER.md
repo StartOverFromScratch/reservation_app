@@ -1,3 +1,5 @@
+
+# 拡張後ER図
 ``` mermaid
 erDiagram
     users ||--o{ reservations : makes
@@ -39,4 +41,17 @@ erDiagram
         int reservation_id FK
         int equipment_id FK
     }
+```
+
+# 初期ER図
+``` mermaid
+erDiagram
+    reservations {
+        int id PK
+        string name
+        string equipment
+        string start_date
+        string end_date
+    } 
+
 ```

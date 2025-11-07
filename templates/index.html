@@ -28,7 +28,8 @@
     <h2>予約フォーム</h2>
     <form id="reserve-form">
       名前: <input type="text" name="name" required><br>
-      備品: <input type="text" name="equipment" required><br>
+      <label for="equipmentSelect">備品:</label>
+      <select name="equipment_id" id="equipmentSelect" required></select><br>
       開始日: <input type="date" name="start_date" required><br>
       終了日: <input type="date" name="end_date" required><br>
       <button type="submit">予約</button>
@@ -56,6 +57,95 @@
     <div id="calendar" style="max-width: 900px; margin: 0 auto;"></div>
     </div>
   </section>
+
+<!-- カテゴリ登録フォーム -->
+<h2>カテゴリ登録</h2>
+<form id="categoryForm">
+  <label for="categoryName">カテゴリ名:</label>
+  <input type="text" id="categoryName" name="name" required>
+  <button type="submit">登録</button>
+</form>
+<div id="categoryResult"></div>
+
+<h3>カテゴリ一覧</h3>
+<ul id="categoryList"></ul>
+
+<!-- 備品登録フォーム -->
+<section id="equipment-section">
+  <h2>備品登録</h2>
+  <form id="equipmentForm">
+    <label for="equipmentName">備品名:</label>
+    <input type="text" id="equipmentName" name="name" required>
+    <label for="equipmentCategory">カテゴリID:</label>
+    <input type="number" id="equipmentCategory" name="category_id" required>
+    <button type="submit">登録</button>
+  </form>
+  <div id="equipmentResult"></div>
+</section>
+
+<!-- 備品一覧表示 -->
+<section id="equipment-list-section">
+  <h2>備品一覧</h2>
+  <ul id="equipmentList"></ul>
+</section>
+
+<script>
+  document.getElementById("categoryForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("categoryName").value;
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const result = await res.json();
+    document.getElementById("categoryResult").innerText = result.message || result.detail;
+    document.getElementById("categoryName").value = "";
+    loadCategories(); // 登録後にカテゴリ一覧を更新
+  });
+
+  async function loadCategories() {
+  const res = await fetch("/api/categories");
+  const data = await res.json();
+  const list = document.getElementById("categoryList");
+  list.innerHTML = "";
+  data.forEach(cat => {
+    const li = document.createElement("li");
+    li.textContent = cat.name;
+    list.appendChild(li);
+  });
+}
+
+async function loadEquipments() {
+  const res = await fetch("/api/equipments");
+  const data = await res.json();
+  const list = document.getElementById("equipmentList");
+  list.innerHTML = "";
+  data.forEach(e => {
+    const li = document.createElement("li");
+    li.textContent = `${e.name}（カテゴリ: ${e.category_name || '未分類'}）`;
+    list.appendChild(li);
+  });
+}
+
+// 備品登録後に再読み込みするよう修正
+document.getElementById("equipmentForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const name = document.getElementById("equipmentName").value;
+  const category_id = document.getElementById("equipmentCategory").value;
+
+  const res = await fetch("/api/equipments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, category_id }),
+  });
+
+  const result = await res.json();
+  document.getElementById("equipmentResult").innerText = result.message || result.detail;
+  document.getElementById("equipmentForm").reset();
+  loadEquipments(); // ⭐ 備品一覧の更新を追加
+});
+</script>
 
 <script>
   const form = document.getElementById('reserve-form');
@@ -175,9 +265,28 @@ function deleteReservation(id) {
       });
   }
 
+  // 備品セレクトボックスへ備品一覧を読み込む
+  function populateEquipmentSelect() {
+    fetch("/api/equipments")
+      .then(res => res.json())
+      .then(data => {
+        const select = document.getElementById("equipmentSelect");
+        select.innerHTML = "<option value=''>--選択--</option>";
+        data.forEach(item => {
+          const option = document.createElement("option");
+          option.value = item.id;
+          option.textContent = `${item.name}（カテゴリ: ${item.category_name || '未分類'}）`;
+          select.appendChild(option);
+        });
+      });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     loadReservations();
     renderCalendar();
+    loadCategories();
+    loadEquipments(); // ⭐ 追加
+    populateEquipmentSelect(); // ⭐ 追加
   });
 </script>
 </body>

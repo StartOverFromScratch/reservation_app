@@ -8,5 +8,5 @@
 instance/
 .env
 
-database.database
+database.db
 
